@@ -21,7 +21,7 @@ app.use(
   cors({
     origin: [
       "https://we-chat-app-rho.vercel.app", // your deployed frontend
-      "http://localhost:3000",               // for local testing
+      "http://localhost:5173",               // for local testing
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
