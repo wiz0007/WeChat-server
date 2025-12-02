@@ -1,11 +1,25 @@
 import express from "express";
-import { sendOtp, verifyOtp, verifyTokenEndpoint } from "../controllers/authController.js";
+import {
+  registerUser,
+  verifyOtp,
+  resendOtp,
+  loginUser,
+  googleLogin,
+  forgotPassword,
+  resetPassword,
+} from "../controllers/authController.js";
 
 const router = express.Router();
 
-router.post("/send-otp", sendOtp);
+router.post("/register", registerUser);
+router.post("/resend-otp", resendOtp);
 router.post("/verify-otp", verifyOtp);
-router.get("/verify-token", verifyTokenEndpoint); // optional route for frontend to check auth
+
+router.post("/login", loginUser);
+router.post("/google-login", googleLogin);
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;
 
