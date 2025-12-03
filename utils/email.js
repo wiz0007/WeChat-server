@@ -18,6 +18,7 @@ export const sendEmail = async ({ to, subject, html }) => {
     });
 
     console.log("Email sent:", to);
+
     return true;
   } catch (err) {
     console.error("Nodemailer Error:", err);
