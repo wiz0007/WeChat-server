@@ -1,1 +1,1 @@
-site link: https://we-chatt-ruby.vercel.app/
+site link: https://we-chat-app-rho.vercel.app/
