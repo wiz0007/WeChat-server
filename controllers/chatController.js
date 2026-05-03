@@ -4,9 +4,12 @@ import User from "../models/User.js";
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ _id: { $ne: req.user.id } }).select(
-      "name email avatar"
-    );
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+      isVerified: true,
+    })
+      .select("name username email isOnline lastSeen")
+      .sort({ isOnline: -1, name: 1 });
     return res.status(200).json(users);
   } catch (err) {
     console.error("Error fetching users:", err);
@@ -21,16 +24,24 @@ export const accessChat = async (req, res) => {
     const { userId } = req.body;
     const currentUserId = req.user._id;
 
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
     let chat = await Chat.findOne({
       participants: { $all: [currentUserId, userId] },
     })
-      .populate("participants", "name email")
+      .populate("participants", "name username email isOnline lastSeen")
       .populate("lastMessage");
 
     if (!chat) {
       chat = await Chat.create({
         participants: [currentUserId, userId],
       });
+
+      chat = await Chat.findById(chat._id)
+        .populate("participants", "name username email isOnline lastSeen")
+        .populate("lastMessage");
     }
 
     res.json(chat);

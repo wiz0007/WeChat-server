@@ -1,21 +1,18 @@
 import express from "express";
-import multer from "multer";
-import { getMessages, sendMessage } from "../controllers/messageController.js";
+import {
+  getMessages,
+  markMessagesAsDelivered,
+  markMessagesAsRead,
+  sendMessage,
+} from "../controllers/messageController.js";
+import { protect } from "../middleware/authMiddleware.js";
+import { upload } from "../utils/upload.js";
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`;
-    cb(null, unique);
-  }
-});
-const upload = multer({ storage });
-
-router.get("/:chatId", getMessages);
-router.post("/", upload.single("file"), sendMessage);
+router.get("/:chatId", protect, getMessages);
+router.post("/:chatId/delivered", protect, markMessagesAsDelivered);
+router.post("/:chatId/read", protect, markMessagesAsRead);
+router.post("/", protect, upload.single("file"), sendMessage);
 
 export default router;

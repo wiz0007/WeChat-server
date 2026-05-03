@@ -8,15 +8,13 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   isVerified: { type: Boolean, default: false },
 
-  // For OTP (email verification)
-  otp: { type: String },
-  otpExpires: { type: Date },
-
   // For password reset
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 
   googleId: { type: String },
+  isOnline: { type: Boolean, default: false },
+  lastSeen: { type: Date, default: null },
 }, { timestamps: true });
 
 userSchema.pre("save", async function (next) {

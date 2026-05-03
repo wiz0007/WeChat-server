@@ -1,130 +1,114 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import { sendEmail } from "../utils/email.js"; // MailerSend
+import { sendEmail } from "../utils/email.js";
 import dotenv from "dotenv";
+
 dotenv.config();
 
-// Generate 6-digit OTP
-const generateOTP = () => String(Math.floor(100000 + Math.random() * 900000));
-
-// Generate JWT
 const generateJWT = (payload, expiresIn) =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 
-// ------------------------------
-// REGISTER + SEND OTP
-// ------------------------------
+const normalizeEmail = (email = "") => email.trim().toLowerCase();
+
+const normalizeUsername = (username = "") => username.trim().toLowerCase();
+
+const getClientUrl = () => {
+  const rawValue = process.env.CLIENT_URL?.split("#")[0].trim();
+  return (rawValue || "http://localhost:5173").replace(/\/+$/, "");
+};
+
+const generateUsernameFromName = (name = "user") =>
+  `${name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12) || "user"}${Math.floor(
+    1000 + Math.random() * 9000
+  )}`;
+
+const buildAuthUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  username: user.username,
+  email: user.email,
+  isOnline: user.isOnline,
+  lastSeen: user.lastSeen,
+});
+
 export const registerUser = async (req, res) => {
   try {
-    const { name, username, email, password } = req.body;
+    const name = req.body.name?.trim();
+    const username = normalizeUsername(req.body.username);
+    const email = normalizeEmail(req.body.email);
+    const password = req.body.password;
 
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "User already exists" });
+    if (!name || !username || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
 
-    user = await User.create({ name, username, email, password });
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters long" });
+    }
 
-    // OTP
-    const otp = generateOTP();
-    user.otp = otp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
+    const existingByUsername = await User.findOne({ username });
+    if (existingByUsername && normalizeEmail(existingByUsername.email) !== email) {
+      return res.status(400).json({ message: "Username already exists" });
+    }
 
-    // MailerSend send
-    await sendEmail({
-      to: email,
-      subject: "Verify your email",
-      html: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const user = await User.create({
+      name,
+      username,
+      email,
+      password,
+      isVerified: true,
     });
 
-    res.status(201).json({ message: "OTP sent to email", userId: user._id });
+    res.status(201).json({
+      message: "Account created successfully",
+      userId: user._id,
+    });
   } catch (err) {
     console.error("Register Error:", err);
+    if (err?.code === 11000) {
+      const duplicateField = Object.keys(err.keyPattern || {})[0];
+      const fieldMessage =
+        duplicateField === "username"
+          ? "Username already exists"
+          : "User already exists";
+      return res.status(400).json({ message: fieldMessage });
+    }
+
     res.status(500).json({ message: err.message });
   }
 };
 
-// ------------------------------
-// RESEND OTP
-// ------------------------------
-export const resendOtp = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.isVerified)
-      return res.status(400).json({ message: "Already verified" });
-
-    const otp = generateOTP();
-    user.otp = otp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
-
-    await sendEmail({
-      to: email,
-      subject: "Resend OTP - Verify Email",
-      html: `<p>Your new OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
-
-    res.json({ message: "New OTP sent to email" });
-  } catch (err) {
-    console.error("Resend OTP Error:", err);
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// ------------------------------
-// VERIFY OTP
-// ------------------------------
-export const verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (String(user.otp) !== String(otp))
-      return res.status(400).json({ message: "Invalid OTP" });
-
-    if (user.otpExpires < Date.now())
-      return res.status(400).json({ message: "OTP expired" });
-
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpires = undefined;
-
-    await user.save();
-
-    res.json({ message: "Email verified successfully" });
-  } catch (err) {
-    console.error("Verify OTP Error:", err);
-    res.status(500).json({ message: err.message });
-  }
-};
-
-
-// ------------------------------
-// LOGIN
-// ------------------------------
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
-    if (!user.isVerified)
-      return res.status(400).json({ message: "Email not verified" });
 
     const isMatch = await user.matchPassword(password);
-    if (!isMatch)
+    if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    user.isOnline = true;
+    user.lastSeen = new Date();
+    user.isVerified = true;
+    await user.save();
 
     const token = generateJWT({ id: user._id }, "7d");
 
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email },
+      user: buildAuthUser(user),
     });
   } catch (err) {
     console.error("Login Error:", err);
@@ -132,30 +116,59 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// ------------------------------
-// GOOGLE LOGIN
-// ------------------------------
+export const logoutUser = async (req, res) => {
+  try {
+    req.user.isOnline = false;
+    req.user.lastSeen = new Date();
+    await req.user.save();
+
+    res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    console.error("Logout Error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export const googleLogin = async (req, res) => {
   try {
-    const { email, name, googleId } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const name = req.body.name?.trim();
+    const { googleId } = req.body;
 
     let user = await User.findOne({ email });
 
     if (!user) {
+      let username = normalizeUsername(req.body.username);
+      if (!username) {
+        username = generateUsernameFromName(name);
+      }
+
+      while (await User.findOne({ username })) {
+        username = generateUsernameFromName(name);
+      }
+
       user = await User.create({
         name,
         email,
+        username,
         googleId,
-        password: "GOOGLE",
+        password: `GOOGLE_${googleId || crypto.randomBytes(8).toString("hex")}`,
         isVerified: true,
+        isOnline: true,
+        lastSeen: new Date(),
       });
+    } else {
+      user.isOnline = true;
+      user.lastSeen = new Date();
+      user.isVerified = true;
+      await user.save();
     }
 
     const token = generateJWT({ id: user._id }, "7d");
 
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email },
+      user: buildAuthUser(user),
     });
   } catch (err) {
     console.error("Google Login Error:", err);
@@ -163,12 +176,9 @@ export const googleLogin = async (req, res) => {
   }
 };
 
-// ------------------------------
-// FORGOT PASSWORD
-// ------------------------------
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -183,7 +193,7 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}&id=${user._id}`;
+    const resetUrl = `${getClientUrl()}/reset-password?token=${resetToken}&id=${user._id}`;
 
     await sendEmail({
       to: email,
@@ -198,12 +208,15 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// ------------------------------
-// RESET PASSWORD
-// ------------------------------
 export const resetPassword = async (req, res) => {
   try {
     const { userId, token, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters long" });
+    }
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -212,15 +225,15 @@ export const resetPassword = async (req, res) => {
 
     if (
       user.resetPasswordToken !== tokenHash ||
+      !user.resetPasswordExpires ||
       user.resetPasswordExpires < Date.now()
     ) {
       return res.status(400).json({ message: "Token invalid or expired" });
     }
 
-    user.password = newPassword; // hashed automatically
+    user.password = newPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
-
     await user.save();
 
     res.json({ message: "Password reset successful" });
