@@ -8,7 +8,7 @@ export const getAllUsers = async (req, res) => {
       _id: { $ne: req.user.id },
       isVerified: true,
     })
-      .select("name username email isOnline lastSeen")
+      .select("name username email avatar about isOnline lastSeen")
       .sort({ isOnline: -1, name: 1 });
     return res.status(200).json(users);
   } catch (err) {
@@ -31,7 +31,7 @@ export const accessChat = async (req, res) => {
     let chat = await Chat.findOne({
       participants: { $all: [currentUserId, userId] },
     })
-      .populate("participants", "name username email isOnline lastSeen")
+      .populate("participants", "name username email avatar about isOnline lastSeen")
       .populate("lastMessage");
 
     if (!chat) {
@@ -40,7 +40,7 @@ export const accessChat = async (req, res) => {
       });
 
       chat = await Chat.findById(chat._id)
-        .populate("participants", "name username email isOnline lastSeen")
+        .populate("participants", "name username email avatar about isOnline lastSeen")
         .populate("lastMessage");
     }
 

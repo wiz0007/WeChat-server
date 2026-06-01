@@ -28,6 +28,8 @@ const buildAuthUser = (user) => ({
   name: user.name,
   username: user.username,
   email: user.email,
+  avatar: user.avatar,
+  about: user.about,
   isOnline: user.isOnline,
   lastSeen: user.lastSeen,
 });
@@ -125,6 +127,59 @@ export const logoutUser = async (req, res) => {
     res.json({ message: "Logged out successfully" });
   } catch (err) {
     console.error("Logout Error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getCurrentUser = async (req, res) => {
+  try {
+    res.json({
+      user: buildAuthUser(req.user),
+    });
+  } catch (err) {
+    console.error("Get current user error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const name = req.body.name?.trim();
+    const username = normalizeUsername(req.body.username);
+    const email = normalizeEmail(req.body.email);
+    const avatar =
+      req.file
+        ? `/uploads/${req.file.filename}`
+        : req.body.avatar?.trim() || req.user.avatar || "";
+    const about = req.body.about?.trim() || "";
+
+    if (!name || !username || !email) {
+      return res.status(400).json({ message: "Name, username, and email are required" });
+    }
+
+    const usernameOwner = await User.findOne({ username });
+    if (usernameOwner && String(usernameOwner._id) !== String(req.user._id)) {
+      return res.status(400).json({ message: "Username already exists" });
+    }
+
+    const emailOwner = await User.findOne({ email });
+    if (emailOwner && String(emailOwner._id) !== String(req.user._id)) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    req.user.name = name;
+    req.user.username = username;
+    req.user.email = email;
+    req.user.avatar = avatar;
+    req.user.about = about || "Available on WeChat";
+    await req.user.save();
+
+    res.json({
+      message: "Profile updated successfully",
+      user: buildAuthUser(req.user),
+    });
+  } catch (err) {
+    console.error("Update profile error:", err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   isVerified: { type: Boolean, default: false },
+  avatar: { type: String, default: "" },
+  about: { type: String, default: "Available on WeChat" },
 
   // For password reset
   resetPasswordToken: { type: String },
