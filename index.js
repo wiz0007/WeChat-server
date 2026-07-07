@@ -14,24 +14,43 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  process.env.CLIENT_URL,
+const parseAllowedOrigins = (value = "") =>
+  value
+    .split(",")
+    .map((origin) => origin.split("#")[0].trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+
+const allowedOrigins = new Set([
+  ...parseAllowedOrigins(process.env.CLIENT_URL),
   "http://localhost:5173",
-].filter(Boolean);
+  "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const normalizedOrigin = origin.replace(/\/+$/, "");
+  return (
+    allowedOrigins.has(normalizedOrigin) ||
+    /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin)
+  );
+};
 
-      return callback(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
