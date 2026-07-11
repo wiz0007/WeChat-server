@@ -12,6 +12,12 @@ const chatSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
     },
+    status: {
+      type: String,
+      enum: ["active", "restricted"],
+      default: "active",
+      index: true,
+    },
   },
   { timestamps: true }
 );

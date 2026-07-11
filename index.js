@@ -5,8 +5,14 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./routes/authRoutes.js";
+import chatRequestRoutes from "./routes/chatRequestRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import connectionRoutes from "./routes/connectionRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import safetyRoutes from "./routes/safetyRoutes.js";
+import searchRoutes from "./routes/searchRoutes.js";
+import userProfileRoutes from "./routes/userProfileRoutes.js";
 import socketSetup from "./socket.js";
 
 dotenv.config();
@@ -61,6 +67,12 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userProfileRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/connections", connectionRoutes);
+app.use("/api/chat-requests", chatRequestRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/safety", safetyRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/messages", messageRoutes);
 

@@ -30,6 +30,10 @@ const buildAuthUser = (user) => ({
   email: user.email,
   avatar: user.avatar,
   about: user.about,
+  headline: user.headline,
+  location: user.location,
+  profileVisibility: user.profileVisibility,
+  privacy: user.privacy,
   isOnline: user.isOnline,
   lastSeen: user.lastSeen,
 });
@@ -64,6 +68,7 @@ export const registerUser = async (req, res) => {
     const user = await User.create({
       name,
       username,
+      usernameLower: username,
       email,
       password,
       isVerified: true,
@@ -169,6 +174,7 @@ export const updateProfile = async (req, res) => {
 
     req.user.name = name;
     req.user.username = username;
+    req.user.usernameLower = username;
     req.user.email = email;
     req.user.avatar = avatar;
     req.user.about = about || "Available on WeChat";
@@ -206,6 +212,7 @@ export const googleLogin = async (req, res) => {
         name,
         email,
         username,
+        usernameLower: username,
         googleId,
         password: `GOOGLE_${googleId || crypto.randomBytes(8).toString("hex")}`,
         isVerified: true,

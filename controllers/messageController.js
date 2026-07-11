@@ -1,9 +1,22 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
+import mongoose from "mongoose";
+import { getChatForParticipant } from "../services/chatPermissionService.js";
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 export const getMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ success: false, message: "Invalid chat id" });
+    }
+
+    const chat = await getChatForParticipant(chatId, req.user._id);
+    if (!chat) {
+      return res.status(403).json({ success: false, message: "Not allowed to read this chat" });
+    }
+
     const messages = await Message.find({ chatId })
       .populate("senderId", "name username email")
       .sort({ createdAt: 1 });
@@ -18,6 +31,14 @@ export const markMessagesAsDelivered = async (req, res) => {
   try {
     const { chatId } = req.params;
     const currentUserId = String(req.user._id);
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ success: false, message: "Invalid chat id" });
+    }
+
+    const chat = await getChatForParticipant(chatId, req.user._id);
+    if (!chat) {
+      return res.status(403).json({ success: false, message: "Not allowed to update this chat" });
+    }
 
     const undeliveredMessages = await Message.find({
       chatId,
@@ -51,6 +72,14 @@ export const markMessagesAsRead = async (req, res) => {
   try {
     const { chatId } = req.params;
     const currentUserId = String(req.user._id);
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ success: false, message: "Invalid chat id" });
+    }
+
+    const chat = await getChatForParticipant(chatId, req.user._id);
+    if (!chat) {
+      return res.status(403).json({ success: false, message: "Not allowed to update this chat" });
+    }
 
     const unreadMessages = await Message.find({
       chatId,
@@ -85,10 +114,15 @@ export const sendMessage = async (req, res) => {
     const { chatId, text } = req.body;
     const senderId = req.user._id;
 
-    if (!chatId) {
+    if (!chatId || !isValidObjectId(chatId)) {
       return res
         .status(400)
-        .json({ success: false, message: "chatId is required" });
+        .json({ success: false, message: "Valid chatId is required" });
+    }
+
+    const chat = await getChatForParticipant(chatId, senderId);
+    if (!chat) {
+      return res.status(403).json({ success: false, message: "Not allowed to send to this chat" });
     }
 
     if (!text?.trim() && !req.file) {
