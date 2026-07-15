@@ -5,6 +5,8 @@ import User from "./models/User.js";
 
 dotenv.config();
 
+let ioInstance = null;
+
 const parseAllowedOrigins = (value = "") =>
   value
     .split(",")
@@ -38,6 +40,8 @@ export default function socketSetup(server) {
     },
   });
 
+  ioInstance = io;
+
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error("Unauthorized"));
@@ -54,6 +58,7 @@ export default function socketSetup(server) {
 
   io.on("connection", (socket) => {
     console.log("Socket connected:", socket.userId);
+    socket.join(`user:${socket.userId}`);
 
     User.findByIdAndUpdate(socket.userId, {
       isOnline: true,
@@ -112,3 +117,9 @@ export default function socketSetup(server) {
 
   return io;
 }
+export const emitToUser = (userId, eventName, payload) => {
+  if (!ioInstance || !userId || !eventName) return;
+  ioInstance.to(`user:${userId}`).emit(eventName, payload);
+};
+
+

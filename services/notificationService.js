@@ -1,4 +1,5 @@
 import Notification from "../models/Notification.js";
+import { emitToUser } from "../socket.js";
 
 export const createNotification = async ({
   userId,
@@ -11,7 +12,7 @@ export const createNotification = async ({
 }) => {
   if (!userId || !type || !title) return null;
 
-  return Notification.create({
+  const notification = await Notification.create({
     userId,
     actorId,
     type,
@@ -20,6 +21,18 @@ export const createNotification = async ({
     entityType,
     entityId,
   });
+
+  const [populatedNotification, unreadCount] = await Promise.all([
+    Notification.findById(notification._id).populate("actorId", "name username avatar"),
+    Notification.countDocuments({ userId, isRead: false }),
+  ]);
+
+  emitToUser(userId, "notification:new", {
+    notification: populatedNotification,
+    unreadCount,
+  });
+
+  return notification;
 };
 
 export const notifyConnectionRequest = (connection) =>
@@ -69,3 +82,4 @@ export const notifyChatRequestResponse = (request, accepted) =>
     entityType: "chat_request",
     entityId: request._id,
   });
+
